@@ -337,6 +337,35 @@ inactive_churn = (
 )
 
 # ==================================================
+# PHASE 3 EXECUTIVE INTELLIGENCE
+# ==================================================
+
+risk_score = min(
+    round((churn_rate * 2) + (high_value_churn * 0.8)),
+    100
+)
+
+if risk_score >= 75:
+    risk_label = "HIGH"
+elif risk_score >= 50:
+    risk_label = "MEDIUM"
+else:
+    risk_label = "LOW"
+
+geo_risk = filtered.groupby("Geography")["Exited"].mean().sort_values(ascending=False)
+top_country = geo_risk.index[0]
+top_country_rate = geo_risk.iloc[0] * 100
+
+age_risk = filtered.groupby("AgeGroup", observed=True)["Exited"].mean().sort_values(ascending=False)
+top_age = age_risk.index[0]
+top_age_rate = age_risk.iloc[0] * 100
+
+portfolio_churn = df["Exited"].mean() * 100
+filter_delta = churn_rate - portfolio_churn
+
+industry_benchmark = 15
+
+# ==================================================
 # HEADER
 # ==================================================
 
@@ -398,6 +427,16 @@ k5.metric(
     f"{len(filtered):,}"
 )
 
+st.markdown("### 🎯 Portfolio Risk Score")
+st.progress(risk_score/100)
+st.info(f"Risk Score: {risk_score}/100 | Risk Level: {risk_label}")
+
+r1,r2,r3,r4 = st.columns(4)
+r1.metric("Highest Risk Country", top_country, f"{top_country_rate:.1f}%")
+r2.metric("Highest Risk Age Group", str(top_age), f"{top_age_rate:.1f}%")
+r3.metric("Churn vs Benchmark", f"{churn_rate:.1f}%", f"{churn_rate-industry_benchmark:+.1f}%")
+r4.metric("Filter Impact", f"{filter_delta:+.1f}%")
+
 # ==================================================
 # EXECUTIVE INSIGHT
 # ==================================================
@@ -406,7 +445,7 @@ st.markdown(f"""
 <div class="insight-banner">
 
 <h3>
-🚨 Executive Insight
+🤖 AI Executive Briefing
 </h3>
 
 Germany and customers aged 46–60 continue
@@ -1085,6 +1124,20 @@ with tab5:
     # ==================================================
 
     st.subheader("🚨 Priority Action Matrix")
+
+    st.error(
+        f"""
+Immediate Actions This Week
+
+1. Focus retention efforts on {top_country}
+
+2. Protect customers in age group {top_age}
+
+3. Secure approximately £{balance_risk:.1f}M in deposits
+
+4. Re-engage inactive customers immediately
+"""
+    )
 
     c1, c2 = st.columns(2)
 

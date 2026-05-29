@@ -512,77 +512,6 @@ with tab1:
 
     st.divider()
 
-    col1, col2 = st.columns(2)
-
-    # Country Ranking
-
-    geo_data = (
-        filtered
-        .groupby("Geography")["Exited"]
-        .mean()
-        .reset_index()
-    )
-
-    geo_data["Exited"] *= 100
-
-    fig1 = px.bar(
-        geo_data,
-        x="Geography",
-        y="Exited",
-        text_auto=".1f",
-        color="Exited",
-        color_continuous_scale="Reds",
-        title="Country Churn Ranking"
-    )
-
-    fig1.update_layout(**PLOT_LAYOUT)
-
-    col1.plotly_chart(
-        fig1,
-        use_container_width=True
-    )
-
-    # Member Status
-
-    member_data = (
-        filtered
-        .groupby("IsActiveMember")["Exited"]
-        .mean()
-        .reset_index()
-    )
-
-    member_data["Exited"] *= 100
-
-    member_data["Status"] = (
-        member_data["IsActiveMember"]
-        .map({
-            1:"Active",
-            0:"Inactive"
-        })
-    )
-
-    fig2 = px.bar(
-        member_data,
-        x="Status",
-        y="Exited",
-        color="Status",
-        text_auto=".1f",
-        color_discrete_map={
-            "Active":SUCCESS,
-            "Inactive":DANGER
-        },
-        title="Active vs Inactive Churn"
-    )
-
-    fig2.update_layout(**PLOT_LAYOUT)
-
-    col2.plotly_chart(
-        fig2,
-        use_container_width=True
-    )
-
-    st.divider()
-
     st.info(
         f"""
         Executive Summary
@@ -640,7 +569,8 @@ with tab2:
 
     c1.plotly_chart(
         fig3,
-        use_container_width=True
+        width="stretch",
+        key="age_churn"
     )
 
     # GENDER ANALYSIS
@@ -672,7 +602,8 @@ with tab2:
 
     c2.plotly_chart(
         fig4,
-        use_container_width=True
+        width="stretch",
+        key="gender_churn"
     )
 
     st.divider()
@@ -709,7 +640,8 @@ with tab2:
 
     st.plotly_chart(
         fig5,
-        use_container_width=True
+        width="stretch",
+        key="age_gender"
     )
 
     st.divider()
@@ -741,7 +673,8 @@ with tab2:
 
     left.plotly_chart(
         fig6,
-        use_container_width=True
+        width="stretch",
+        key="product_churn"
     )
 
     # TENURE
@@ -772,7 +705,8 @@ with tab2:
 
     right.plotly_chart(
         fig7,
-        use_container_width=True
+        width="stretch",
+        key="tenure_churn"
     )
 
     st.info(
@@ -832,7 +766,8 @@ with tab3:
 
     col1.plotly_chart(
         fig8,
-        use_container_width=True
+        width="stretch",
+        key="geo_ranking"
     )
 
     # COUNTRY x GENDER
@@ -866,7 +801,8 @@ with tab3:
 
     col2.plotly_chart(
         fig9,
-        use_container_width=True
+        width="stretch",
+        key="geo_gender"
     )
 
     st.divider()
@@ -1006,7 +942,8 @@ with tab4:
 
     left.plotly_chart(
         fig10,
-        use_container_width=True
+        width="stretch",
+        key="balance_segment"
     )
 
     # HIGH VALUE GEO
@@ -1036,7 +973,8 @@ with tab4:
 
     right.plotly_chart(
         fig11,
-        use_container_width=True
+        width="stretch",
+        key="high_value_geo"
     )
 
     st.divider()
@@ -1106,7 +1044,8 @@ with tab4:
 
     st.plotly_chart(
         fig12,
-        use_container_width=True
+        width="stretch",
+        key="risk_quadrant"
     )
 
     st.info(

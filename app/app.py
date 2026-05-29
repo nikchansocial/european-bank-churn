@@ -1,396 +1,1350 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# ==================================================
+# PAGE CONFIG
+# ==================================================
 
 st.set_page_config(
-    page_title="ECB Customer Churn Intelligence",
+    page_title="ECB Customer Intelligence Platform",
     page_icon="🏦",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# ECB Color Palette
-ECB_NAVY    = "#003366"
-ECB_YELLOW  = "#FFCC00"
-ECB_RED     = "#CC0000"
-ECB_GREEN   = "#006633"
-ECB_GRAY    = "#F0F4F8"
-ECB_MID     = "#336699"
+# ==================================================
+# DESIGN SYSTEM
+# ==================================================
+
+PRIMARY = "#0F172A"
+ACCENT = "#2563EB"
+
+SUCCESS = "#10B981"
+WARNING = "#F59E0B"
+DANGER = "#EF4444"
+
+BACKGROUND = "#F8FAFC"
+CARD = "#FFFFFF"
+BORDER = "#E2E8F0"
+
+TEXT = "#1E293B"
+SUBTEXT = "#64748B"
+
+# ==================================================
+# GLOBAL CSS
+# ==================================================
+
+st.markdown("""
+<style>
+
+/* Main App */
+
+.stApp{
+    background-color:#F8FAFC;
+}
+
+/* Container */
+
+.block-container{
+    max-width:1450px;
+    padding-top:1rem;
+    padding-bottom:2rem;
+}
+
+/* Sidebar */
+
+[data-testid="stSidebar"]{
+    background:white;
+    border-right:1px solid #E2E8F0;
+}
+
+/* Metric Cards */
+
+[data-testid="metric-container"]{
+    background:white;
+    border:1px solid #E2E8F0;
+    padding:15px;
+    border-radius:16px;
+    box-shadow:0px 2px 6px rgba(0,0,0,0.05);
+}
+
+/* Tabs */
+
+.stTabs [data-baseweb="tab"]{
+    font-size:15px;
+    font-weight:600;
+}
+
+/* Headers */
+
+.section-header{
+    font-size:24px;
+    font-weight:700;
+    color:#0F172A;
+    margin-bottom:5px;
+}
+
+.section-sub{
+    color:#64748B;
+    font-size:14px;
+    margin-bottom:20px;
+}
+
+.insight-banner{
+    background:linear-gradient(
+        135deg,
+        #0F172A,
+        #1E293B
+    );
+
+    color:white;
+    padding:24px;
+    border-radius:18px;
+    margin-top:15px;
+    margin-bottom:25px;
+}
+
+.priority-card{
+    background:white;
+    border:1px solid #E2E8F0;
+    border-radius:16px;
+    padding:20px;
+    margin-bottom:15px;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# ==================================================
+# DATA
+# ==================================================
 
 @st.cache_data
 def load_data():
-    df = pd.read_csv('data/European_Bank.csv')
-    df.drop(columns=['Surname', 'CustomerId', 'Year'], inplace=True)
-    df['AgeGroup'] = pd.cut(df['Age'],
+
+    df = pd.read_csv("data/European_Bank.csv")
+
+    df.drop(
+        columns=[
+            "Surname",
+            "CustomerId",
+            "Year"
+        ],
+        inplace=True
+    )
+
+    df["AgeGroup"] = pd.cut(
+        df["Age"],
         bins=[0,29,45,60,120],
-        labels=['<30','30-45','46-60','60+'])
-    df['CreditBand'] = pd.cut(df['CreditScore'],
+        labels=[
+            "<30",
+            "30-45",
+            "46-60",
+            "60+"
+        ]
+    )
+
+    df["CreditBand"] = pd.cut(
+        df["CreditScore"],
         bins=[299,579,669,739,850],
-        labels=['Low','Medium','High','Very High'])
-    df['TenureGroup'] = pd.cut(df['Tenure'],
+        labels=[
+            "Low",
+            "Medium",
+            "High",
+            "Very High"
+        ]
+    )
+
+    df["TenureGroup"] = pd.cut(
+        df["Tenure"],
         bins=[-1,2,6,10],
-        labels=['New','Mid-term','Long-term'])
-    df['BalanceSegment'] = pd.cut(df['Balance'],
+        labels=[
+            "New",
+            "Mid-Term",
+            "Long-Term"
+        ]
+    )
+
+    df["BalanceSegment"] = pd.cut(
+        df["Balance"],
         bins=[-1,0,50000,300000],
-        labels=['Zero','Low','High'])
-    threshold = df['Balance'].quantile(0.75)
-    df['IsHighValue'] = (df['Balance'] >= threshold).astype(int)
+        labels=[
+            "Zero",
+            "Low",
+            "High"
+        ]
+    )
+
+    threshold = df["Balance"].quantile(0.75)
+
+    df["IsHighValue"] = (
+        df["Balance"] >= threshold
+    ).astype(int)
+
     return df
+
 
 df = load_data()
 
-# ── SIDEBAR ──
-with st.sidebar:
-    st.markdown(
-        f"""
-        <div style='background-color:{ECB_NAVY}; padding:16px; border-radius:8px; margin-bottom:16px;'>
-            <p style='color:{ECB_YELLOW}; font-size:18px; font-weight:bold; margin:0;'>🏦 ECB Churn Intelligence</p>
-            <p style='color:white; font-size:11px; margin:4px 0 0 0;'>Customer Retention Analytics · 2025</p>
-        </div>
-        """, unsafe_allow_html=True
-    )
+# ==================================================
+# SIDEBAR
+# ==================================================
 
-    st.markdown("### 🔍 Filter Customers")
-    geo = st.multiselect("Country",
-          df['Geography'].unique(),
-          default=list(df['Geography'].unique()))
-    age = st.multiselect("Age Group",
-          df['AgeGroup'].unique(),
-          default=list(df['AgeGroup'].unique()))
-    gender = st.radio("Gender", ["All", "Male", "Female"])
-    member = st.radio("Member Status", ["All", "Active", "Inactive"])
-    balance_seg = st.multiselect("Balance Segment",
-          df['BalanceSegment'].unique(),
-          default=list(df['BalanceSegment'].unique()))
+with st.sidebar:
+
+    st.markdown("""
+    ## 🏦 ECB Intelligence
+
+    Executive Retention Platform
+    """)
 
     st.markdown("---")
+
+    with st.expander(
+        "🌍 Geography",
+        expanded=True
+    ):
+
+        geo = st.multiselect(
+            "Country",
+            df["Geography"].unique(),
+            default=list(df["Geography"].unique())
+        )
+
+    with st.expander(
+        "👥 Customer Profile",
+        expanded=True
+    ):
+
+        age = st.multiselect(
+            "Age Group",
+            df["AgeGroup"].unique(),
+            default=list(df["AgeGroup"].unique())
+        )
+
+        gender = st.radio(
+            "Gender",
+            ["All","Male","Female"]
+        )
+
+        member = st.radio(
+            "Member Status",
+            ["All","Active","Inactive"]
+        )
+
+    with st.expander(
+        "💰 Financial",
+        expanded=False
+    ):
+
+        balance_seg = st.multiselect(
+            "Balance Segment",
+            df["BalanceSegment"].unique(),
+            default=list(df["BalanceSegment"].unique())
+        )
+
+    st.markdown("---")
+
+    st.caption(
+        "10,000 Customers\n\nFrance • Germany • Spain"
+    )
+
+# ==================================================
+# FILTERING
+# ==================================================
+
+mask = (
+
+    df["Geography"].isin(geo)
+
+    &
+
+    df["AgeGroup"].isin(age)
+
+    &
+
+    df["BalanceSegment"].isin(balance_seg)
+
+)
+
+if gender != "All":
+    mask &= (
+        df["Gender"] == gender
+    )
+
+if member != "All":
+
+    mask &= (
+        df["IsActiveMember"]
+        ==
+        (
+            1
+            if member == "Active"
+            else 0
+        )
+    )
+
+filtered = df[mask]
+
+# ==================================================
+# KPI CALCULATIONS
+# ==================================================
+
+churn_rate = (
+    filtered["Exited"].mean() * 100
+)
+
+total_lost = int(
+    filtered["Exited"].sum()
+)
+
+high_value_churn = (
+    filtered[
+        filtered["IsHighValue"] == 1
+    ]["Exited"].mean()
+    * 100
+)
+
+balance_risk = (
+
+    filtered[
+        (filtered["Exited"] == 1)
+        &
+        (filtered["IsHighValue"] == 1)
+    ]["Balance"]
+
+    .sum()
+
+    / 1e6
+
+)
+
+inactive_churn = (
+
+    filtered[
+        filtered["IsActiveMember"] == 0
+    ]["Exited"]
+
+    .mean()
+
+    * 100
+
+)
+
+# ==================================================
+# HEADER
+# ==================================================
+
+st.markdown("""
+<div style="
+background:white;
+padding:28px;
+border-radius:18px;
+border:1px solid #E2E8F0;
+">
+
+<h1 style="
+margin-bottom:0;
+color:#0F172A;
+">
+🏦 ECB Customer Intelligence Platform
+</h1>
+
+<p style="
+color:#64748B;
+margin-top:8px;
+">
+Executive Analytics for Customer Churn Risk & Retention Strategy
+</p>
+
+</div>
+""", unsafe_allow_html=True)
+
+st.write("")
+
+# ==================================================
+# KPI ROW
+# ==================================================
+
+k1,k2,k3,k4 = st.columns(4)
+
+k1.metric(
+    "Churn Rate",
+    f"{churn_rate:.1f}%"
+)
+
+k2.metric(
+    "Balance At Risk",
+    f"£{balance_risk:.1f}M"
+)
+
+k3.metric(
+    "High Value Churn",
+    f"{high_value_churn:.1f}%"
+)
+
+k4.metric(
+    "Inactive Churn",
+    f"{inactive_churn:.1f}%"
+)
+
+st.metric(
+    "Customers Analysed",
+    f"{len(filtered):,}"
+)
+
+# ==================================================
+# EXECUTIVE INSIGHT
+# ==================================================
+
+st.markdown(f"""
+<div class="insight-banner">
+
+<h3>
+🚨 Executive Insight
+</h3>
+
+Germany and customers aged 46–60 continue
+to represent the most vulnerable retention
+segment.
+
+Current exposure among high-value customers
+is estimated at approximately £{balance_risk:.1f}M.
+
+</div>
+""", unsafe_allow_html=True)
+
+# ==================================================
+# TABS
+# ==================================================
+
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+
+    "📊 Executive Overview",
+
+    "👥 Customer Intelligence",
+
+    "🌍 Geographic Intelligence",
+
+    "💰 Financial Exposure",
+
+    "🎯 Action Center"
+
+])
+
+PLOT_LAYOUT = dict(
+
+    paper_bgcolor="white",
+
+    plot_bgcolor="white",
+
+    font=dict(
+        color=TEXT
+    ),
+
+    margin=dict(
+        l=20,
+        r=20,
+        t=50,
+        b=20
+    )
+    
+# ==================================================
+# TAB 1 — EXECUTIVE OVERVIEW
+# ==================================================
+
+with tab1:
+
     st.markdown(
-        "<p style='font-size:11px; color:gray;'>Data: European Central Bank<br>10,000 customers · France, Germany, Spain</p>",
+        '<div class="section-header">Executive Risk Overview</div>',
         unsafe_allow_html=True
     )
 
-# ── APPLY FILTERS ──
-mask = (df['Geography'].isin(geo) &
-        df['AgeGroup'].isin(age) &
-        df['BalanceSegment'].isin(balance_seg))
-if gender != "All":
-    mask &= df['Gender'] == gender
-if member != "All":
-    mask &= df['IsActiveMember'] == (1 if member == "Active" else 0)
-filtered = df[mask]
-
-# ── HEADER ──
-st.markdown(
-    f"""
-    <div style='background-color:{ECB_NAVY}; padding:24px 28px; border-radius:10px; margin-bottom:24px;'>
-        <h1 style='color:{ECB_YELLOW}; margin:0; font-size:26px;'>🏦 European Bank — Customer Churn Intelligence Dashboard</h1>
-        <p style='color:white; margin:6px 0 0 0; font-size:14px;'>
-        Identifying high-risk customer segments to support targeted retention strategies across France, Germany & Spain
-        </p>
-    </div>
-    """, unsafe_allow_html=True
-)
-
-# ── PROBLEM STATEMENT BANNER ──
-churn_r   = filtered['Exited'].mean() * 100
-total_c   = int(filtered['Exited'].sum())
-hv_r      = filtered[filtered['IsHighValue']==1]['Exited'].mean() * 100
-risk      = filtered[(filtered['IsHighValue']==1) & (filtered['Exited']==1)]['Balance'].sum() / 1e6
-inactive_c= filtered[filtered['IsActiveMember']==0]['Exited'].mean() * 100
-
-col_alert = st.columns([2,1,1,1,1])
-col_alert[0].markdown(
-    f"""
-    <div style='background:{ECB_RED}; color:white; padding:14px 18px; border-radius:8px; height:80px;'>
-        <div style='font-size:11px; opacity:0.85;'>⚠ OVERALL CHURN RATE</div>
-        <div style='font-size:28px; font-weight:bold;'>{churn_r:.1f}%</div>
-        <div style='font-size:11px; opacity:0.75;'>{total_c:,} customers lost</div>
-    </div>
-    """, unsafe_allow_html=True
-)
-col_alert[1].markdown(
-    f"""
-    <div style='background:{ECB_NAVY}; color:white; padding:14px 18px; border-radius:8px; height:80px;'>
-        <div style='font-size:11px; opacity:0.85;'>💰 BALANCE AT RISK</div>
-        <div style='font-size:24px; font-weight:bold;'>£{risk:.1f}M</div>
-        <div style='font-size:11px; opacity:0.75;'>High-value customers</div>
-    </div>
-    """, unsafe_allow_html=True
-)
-col_alert[2].markdown(
-    f"""
-    <div style='background:{ECB_MID}; color:white; padding:14px 18px; border-radius:8px; height:80px;'>
-        <div style='font-size:11px; opacity:0.85;'>⭐ HIGH-VALUE CHURN</div>
-        <div style='font-size:24px; font-weight:bold;'>{hv_r:.1f}%</div>
-        <div style='font-size:11px; opacity:0.75;'>Premium segment</div>
-    </div>
-    """, unsafe_allow_html=True
-)
-col_alert[3].markdown(
-    f"""
-    <div style='background:#8B4513; color:white; padding:14px 18px; border-radius:8px; height:80px;'>
-        <div style='font-size:11px; opacity:0.85;'>😴 INACTIVE CHURN</div>
-        <div style='font-size:24px; font-weight:bold;'>{inactive_c:.1f}%</div>
-        <div style='font-size:11px; opacity:0.75;'>Disengaged members</div>
-    </div>
-    """, unsafe_allow_html=True
-)
-col_alert[4].markdown(
-    f"""
-    <div style='background:{ECB_GREEN}; color:white; padding:14px 18px; border-radius:8px; height:80px;'>
-        <div style='font-size:11px; opacity:0.85;'>👥 CUSTOMERS ANALYSED</div>
-        <div style='font-size:24px; font-weight:bold;'>{len(filtered):,}</div>
-        <div style='font-size:11px; opacity:0.75;'>After filters applied</div>
-    </div>
-    """, unsafe_allow_html=True
-)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# ── TABS ──
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "🌍 Geographic Risk",
-    "👥 Demographic Analysis",
-    "💼 Product & Tenure",
-    "💰 Financial Risk",
-    "⭐ Retention Recommendations"
-])
-
-plot_cfg = dict(
-    paper_bgcolor='rgba(0,0,0,0)',
-    plot_bgcolor='rgba(0,0,0,0)',
-    font_color=ECB_NAVY,
-    title_font_color=ECB_NAVY,
-    title_font_size=14
-)
-
-# ── TAB 1: Geographic Risk ──
-with tab1:
-    st.markdown(f"<h3 style='color:{ECB_NAVY};'>Which countries are losing the most customers?</h3>", unsafe_allow_html=True)
-    st.caption("Use this to identify where retention campaigns should be prioritised geographically.")
-
-    col1, col2 = st.columns(2)
-
-    geo_data = filtered.groupby('Geography')['Exited'].mean().reset_index()
-    geo_data['Exited'] = (geo_data['Exited'] * 100).round(1)
-    geo_data.columns = ['Country', 'Churn Rate (%)']
-    geo_data['Color'] = geo_data['Churn Rate (%)'].apply(
-        lambda x: ECB_RED if x > 25 else (ECB_YELLOW if x > 18 else ECB_GREEN))
-
-    fig1 = go.Figure(go.Bar(
-        x=geo_data['Country'], y=geo_data['Churn Rate (%)'],
-        marker_color=geo_data['Color'],
-        text=geo_data['Churn Rate (%)'].apply(lambda x: f'{x}%'),
-        textposition='outside'
-    ))
-    fig1.update_layout(title='Churn Rate by Country', yaxis_title='Churn Rate (%)',
-                       **plot_cfg)
-    col1.plotly_chart(fig1, use_container_width=True)
-
-    cross = filtered.groupby(['Geography','Gender'])['Exited'].mean().reset_index()
-    cross['Exited'] = (cross['Exited'] * 100).round(1)
-    cross.columns = ['Country','Gender','Churn Rate (%)']
-    fig2 = px.bar(cross, x='Country', y='Churn Rate (%)', color='Gender',
-                  barmode='group', text_auto='.1f',
-                  color_discrete_map={'Female': ECB_RED, 'Male': ECB_NAVY},
-                  title='Churn by Country & Gender')
-    fig2.update_layout(**plot_cfg)
-    col2.plotly_chart(fig2, use_container_width=True)
-
-    st.markdown(f"<h4 style='color:{ECB_NAVY};'>Age Risk Heatmap by Country</h4>", unsafe_allow_html=True)
-    st.caption("Darkest cells = highest churn risk. Focus retention on these exact age-country combinations.")
-    pivot = filtered.pivot_table('Exited','AgeGroup','Geography', aggfunc='mean', observed=True)*100
-    fig3, ax = plt.subplots(figsize=(9,4))
-    sns.heatmap(pivot, annot=True, fmt='.1f', cmap='YlOrRd',
-                linewidths=0.5, ax=ax, cbar_kws={'label':'Churn Rate (%)'})
-    ax.set_title('Churn Rate Heatmap: Age × Country', color=ECB_NAVY, fontweight='bold')
-    fig3.patch.set_alpha(0)
-    st.pyplot(fig3)
-
-# ── TAB 2: Demographic Analysis ──
-with tab2:
-    st.markdown(f"<h3 style='color:{ECB_NAVY};'>Which customer profiles churn the most?</h3>", unsafe_allow_html=True)
-    st.caption("Identify demographic groups that need personalised retention offers.")
-
-    col1, col2 = st.columns(2)
-
-    age_data = filtered.groupby('AgeGroup', observed=True)['Exited'].mean().reset_index()
-    age_data['Exited'] = (age_data['Exited']*100).round(1)
-    age_data['Color'] = age_data['Exited'].apply(
-        lambda x: ECB_RED if x > 40 else (ECB_YELLOW if x > 20 else ECB_GREEN))
-    fig4 = go.Figure(go.Bar(
-        x=age_data['AgeGroup'].astype(str),
-        y=age_data['Exited'],
-        marker_color=age_data['Color'],
-        text=age_data['Exited'].apply(lambda x: f'{x}%'),
-        textposition='outside'
-    ))
-    fig4.update_layout(title='Churn Rate by Age Group',
-                       xaxis_title='Age Group', yaxis_title='Churn Rate (%)',
-                       **plot_cfg)
-    col1.plotly_chart(fig4, use_container_width=True)
-
-    gender_data = filtered.groupby('Gender')['Exited'].mean().reset_index()
-    gender_data['Exited'] = (gender_data['Exited']*100).round(1)
-    fig5 = px.pie(gender_data, values='Exited', names='Gender',
-                  color_discrete_map={'Female': ECB_RED, 'Male': ECB_NAVY},
-                  title='Churn Share by Gender',
-                  hole=0.4)
-    fig5.update_layout(**plot_cfg)
-    col2.plotly_chart(fig5, use_container_width=True)
-
-    st.markdown(f"<h4 style='color:{ECB_NAVY};'>Age × Gender churn deep dive</h4>", unsafe_allow_html=True)
-    age_gender = filtered.groupby(['AgeGroup','Gender'], observed=True)['Exited'].mean().reset_index()
-    age_gender['Exited'] = (age_gender['Exited']*100).round(1)
-    age_gender.columns = ['Age Group','Gender','Churn Rate (%)']
-    fig6 = px.bar(age_gender, x='Age Group', y='Churn Rate (%)', color='Gender',
-                  barmode='group', text_auto='.1f',
-                  color_discrete_map={'Female': ECB_RED, 'Male': ECB_NAVY},
-                  title='Churn Rate: Age Group × Gender')
-    fig6.update_layout(**plot_cfg)
-    st.plotly_chart(fig6, use_container_width=True)
-
-# ── TAB 3: Product & Tenure ──
-with tab3:
-    st.markdown(f"<h3 style='color:{ECB_NAVY};'>Do product holdings and loyalty affect churn?</h3>", unsafe_allow_html=True)
-    st.caption("Understand if customers with more products or longer tenure are more or less likely to leave.")
-
-    col1, col2 = st.columns(2)
-
-    prod_data = filtered.groupby('NumOfProducts')['Exited'].mean().reset_index()
-    prod_data['Exited'] = (prod_data['Exited']*100).round(1)
-    prod_data['Color'] = prod_data['Exited'].apply(
-        lambda x: ECB_RED if x > 50 else (ECB_YELLOW if x > 25 else ECB_GREEN))
-    fig7 = go.Figure(go.Bar(
-        x=prod_data['NumOfProducts'].astype(str),
-        y=prod_data['Exited'],
-        marker_color=prod_data['Color'],
-        text=prod_data['Exited'].apply(lambda x: f'{x}%'),
-        textposition='outside'
-    ))
-    fig7.update_layout(title='⚠ Churn by Number of Products',
-                       xaxis_title='Products Held', yaxis_title='Churn Rate (%)',
-                       **plot_cfg)
-    col1.plotly_chart(fig7, use_container_width=True)
-
-    tenure_data = filtered.groupby('TenureGroup', observed=True)['Exited'].mean().reset_index()
-    tenure_data['Exited'] = (tenure_data['Exited']*100).round(1)
-    tenure_data.columns = ['Tenure','Churn Rate (%)']
-    fig8 = px.bar(tenure_data, x='Tenure', y='Churn Rate (%)',
-                  color='Churn Rate (%)',
-                  color_continuous_scale=[[0, ECB_GREEN],[0.5, ECB_YELLOW],[1, ECB_RED]],
-                  text_auto='.1f',
-                  title='Churn Rate by Customer Tenure')
-    fig8.update_layout(**plot_cfg)
-    col2.plotly_chart(fig8, use_container_width=True)
-
-    st.markdown(f"<h4 style='color:{ECB_NAVY};'>Active vs Inactive member churn</h4>", unsafe_allow_html=True)
-    active_data = filtered.groupby('IsActiveMember')['Exited'].mean().reset_index()
-    active_data['IsActiveMember'] = active_data['IsActiveMember'].map({1:'Active', 0:'Inactive'})
-    active_data['Exited'] = (active_data['Exited']*100).round(1)
-    active_data.columns = ['Member Status','Churn Rate (%)']
-    fig9 = px.bar(active_data, x='Member Status', y='Churn Rate (%)',
-                  color='Member Status',
-                  color_discrete_map={'Active': ECB_GREEN, 'Inactive': ECB_RED},
-                  text_auto='.1f',
-                  title='Engagement vs Churn: Active vs Inactive Members')
-    fig9.update_layout(**plot_cfg)
-    st.plotly_chart(fig9, use_container_width=True)
-
-# ── TAB 4: Financial Risk ──
-with tab4:
-    st.markdown(f"<h3 style='color:{ECB_NAVY};'>What is the financial impact of churn?</h3>", unsafe_allow_html=True)
-    st.caption("Quantify revenue at risk and identify financially vulnerable churning segments.")
-
-    col1, col2, col3 = st.columns(3)
-    hv_count  = int(filtered[(filtered['IsHighValue']==1) & (filtered['Exited']==1)].shape[0])
-    avg_bal   = filtered[(filtered['IsHighValue']==1) & (filtered['Exited']==1)]['Balance'].mean()
-    col1.metric("High-Value Customers Lost", f"{hv_count:,}")
-    col2.metric("Avg Balance Lost per Customer", f"£{avg_bal:,.0f}")
-    col3.metric("Total Balance at Risk", f"£{risk:.2f}M")
-
-    col1, col2 = st.columns(2)
-
-    bal_data = filtered.groupby('BalanceSegment', observed=True)['Exited'].mean().reset_index()
-    bal_data['Exited'] = (bal_data['Exited']*100).round(1)
-    bal_data.columns = ['Balance Segment','Churn Rate (%)']
-    fig10 = px.bar(bal_data, x='Balance Segment', y='Churn Rate (%)',
-                   color='Balance Segment',
-                   color_discrete_map={'Zero': ECB_MID,'Low': ECB_RED,'High': ECB_NAVY},
-                   text_auto='.1f',
-                   title='Churn Rate by Balance Segment')
-    fig10.update_layout(**plot_cfg)
-    col1.plotly_chart(fig10, use_container_width=True)
-
-    hv_geo = filtered[filtered['IsHighValue']==1].groupby('Geography')['Exited'].mean().reset_index()
-    hv_geo['Exited'] = (hv_geo['Exited']*100).round(1)
-    hv_geo.columns = ['Country','Churn Rate (%)']
-    fig11 = px.bar(hv_geo, x='Country', y='Churn Rate (%)',
-                   color='Country',
-                   color_discrete_map={'France': ECB_MID,'Germany': ECB_RED,'Spain': ECB_GREEN},
-                   text_auto='.1f',
-                   title='High-Value Customer Churn by Country')
-    fig11.update_layout(**plot_cfg)
-    col2.plotly_chart(fig11, use_container_width=True)
-
-    st.markdown(f"<h4 style='color:{ECB_NAVY};'>Balance vs Salary — Who is churning?</h4>", unsafe_allow_html=True)
-    sample = filtered.sample(min(2000, len(filtered)), random_state=42).copy()
-    sample['Status'] = sample['Exited'].map({0:'Retained', 1:'Churned'})
-    fig12 = px.scatter(sample, x='Balance', y='EstimatedSalary',
-                       color='Status',
-                       color_discrete_map={'Retained': ECB_GREEN,'Churned': ECB_RED},
-                       opacity=0.5,
-                       title='Financial Profile: Churned vs Retained Customers')
-    fig12.update_layout(**plot_cfg)
-    st.plotly_chart(fig12, use_container_width=True)
-
-# ── TAB 5: Recommendations ──
-with tab5:
-    st.markdown(f"<h3 style='color:{ECB_NAVY};'>What should the bank do now?</h3>", unsafe_allow_html=True)
-    st.caption("Actionable retention strategies based on the churn patterns discovered.")
-
-    rec_data = [
-        ("🔴 Germany Emergency Retention", "32.4% churn — highest risk country",
-         "Launch a dedicated Germany retention campaign. Offer personalised relationship managers to 46–60 age group. Investigate local service quality issues.",
-         ECB_RED),
-        ("🟡 Female Customer Engagement", "25.1% churn vs 16.5% for males",
-         "Design female-focused financial products (savings goals, family planning tools). Improve digital banking UX. Run targeted loyalty programmes.",
-         "#CC7700"),
-        ("🔴 46–60 Age Group Crisis", "51.1% churn — majority are leaving",
-         "This group likely has maturing loans and pension planning needs. Offer retirement planning packages, wealth management, and dedicated advisors.",
-         ECB_RED),
-        ("⚠ Product Over-bundling Alert", "3–4 products = 83–100% churn",
-         "Customers with 3+ products are overwhelmed or mis-sold. Audit product bundling strategy. Simplify offerings. Focus on quality over quantity.",
-         "#CC7700"),
-        ("💤 Inactive Member Re-engagement", "26.9% inactive churn vs lower active",
-         "Identify inactive members early. Send personalised re-engagement emails. Offer cashback or fee waivers. Create activity milestones with rewards.",
-         ECB_NAVY),
-        ("💰 High-Value Retention Priority", "£88.6M balance at risk",
-         "Assign dedicated relationship managers to high-value customers. Offer exclusive products, preferential rates, and VIP service tiers.",
-         ECB_MID),
-    ]
-
-    for i in range(0, len(rec_data), 2):
-        cols = st.columns(2)
-        for j, col in enumerate(cols):
-            if i+j < len(rec_data):
-                title, subtitle, body, color = rec_data[i+j]
-                col.markdown(
-                    f"""
-                    <div style='border-left: 5px solid {color}; background:{ECB_GRAY};
-                                padding:16px 20px; border-radius:6px; margin-bottom:12px;'>
-                        <p style='color:{color}; font-weight:bold; font-size:15px; margin:0;'>{title}</p>
-                        <p style='color:{ECB_NAVY}; font-size:12px; margin:4px 0 8px 0;'><em>{subtitle}</em></p>
-                        <p style='color:#333; font-size:13px; margin:0; line-height:1.6;'>{body}</p>
-                    </div>
-                    """, unsafe_allow_html=True
-                )
-
-    st.markdown("---")
     st.markdown(
-        f"<p style='text-align:center; color:{ECB_NAVY}; font-size:12px;'>"
-        "ECB Customer Churn Intelligence · Built with Streamlit · Unified Mentor Project · 2025"
-        "</p>", unsafe_allow_html=True
+        '<div class="section-sub">Board-level summary of customer churn exposure.</div>',
+        unsafe_allow_html=True
     )
+
+    # Heatmap First (Strongest Chart)
+
+    st.subheader("🔥 Age × Geography Risk Matrix")
+
+    pivot = filtered.pivot_table(
+        values="Exited",
+        index="AgeGroup",
+        columns="Geography",
+        aggfunc="mean",
+        observed=True
+    ) * 100
+
+    fig_hm, ax = plt.subplots(figsize=(10,4))
+
+    sns.heatmap(
+        pivot,
+        annot=True,
+        fmt=".1f",
+        cmap="YlOrRd",
+        linewidths=.5,
+        cbar_kws={
+            "label":"Churn Rate (%)"
+        },
+        ax=ax
+    )
+
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+
+    st.pyplot(fig_hm)
+
+    st.divider()
+
+    col1, col2 = st.columns(2)
+
+    # Country Ranking
+
+    geo_data = (
+        filtered
+        .groupby("Geography")["Exited"]
+        .mean()
+        .reset_index()
+    )
+
+    geo_data["Exited"] *= 100
+
+    fig1 = px.bar(
+        geo_data,
+        x="Geography",
+        y="Exited",
+        text_auto=".1f",
+        color="Exited",
+        color_continuous_scale="Reds",
+        title="Country Churn Ranking"
+    )
+
+    fig1.update_layout(**PLOT_LAYOUT)
+
+    col1.plotly_chart(
+        fig1,
+        use_container_width=True
+    )
+
+    # Member Status
+
+    member_data = (
+        filtered
+        .groupby("IsActiveMember")["Exited"]
+        .mean()
+        .reset_index()
+    )
+
+    member_data["Exited"] *= 100
+
+    member_data["Status"] = (
+        member_data["IsActiveMember"]
+        .map({
+            1:"Active",
+            0:"Inactive"
+        })
+    )
+
+    fig2 = px.bar(
+        member_data,
+        x="Status",
+        y="Exited",
+        color="Status",
+        text_auto=".1f",
+        color_discrete_map={
+            "Active":SUCCESS,
+            "Inactive":DANGER
+        },
+        title="Active vs Inactive Churn"
+    )
+
+    fig2.update_layout(**PLOT_LAYOUT)
+
+    col2.plotly_chart(
+        fig2,
+        use_container_width=True
+    )
+
+    st.divider()
+
+    st.info(
+        f"""
+        Executive Summary
+
+        • Overall churn currently stands at {churn_rate:.1f}%
+
+        • Estimated balance exposure equals £{balance_risk:.1f}M
+
+        • High-value customer churn rate is {high_value_churn:.1f}%
+
+        • Inactive customers remain significantly more vulnerable than active members.
+        """
+    )
+
+# ==================================================
+# TAB 2 — CUSTOMER INTELLIGENCE
+# ==================================================
+
+with tab2:
+
+    st.markdown(
+        '<div class="section-header">Customer Intelligence</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="section-sub">Identify who is most likely to leave.</div>',
+        unsafe_allow_html=True
+    )
+
+    c1, c2 = st.columns(2)
+
+    # AGE ANALYSIS
+
+    age_data = (
+        filtered
+        .groupby("AgeGroup", observed=True)["Exited"]
+        .mean()
+        .reset_index()
+    )
+
+    age_data["Exited"] *= 100
+
+    fig3 = px.bar(
+        age_data,
+        x="AgeGroup",
+        y="Exited",
+        text_auto=".1f",
+        color="Exited",
+        color_continuous_scale="Reds",
+        title="Churn by Age Group"
+    )
+
+    fig3.update_layout(**PLOT_LAYOUT)
+
+    c1.plotly_chart(
+        fig3,
+        use_container_width=True
+    )
+
+    # GENDER ANALYSIS
+    # PIE CHART REMOVED
+
+    gender_data = (
+        filtered
+        .groupby("Gender")["Exited"]
+        .mean()
+        .reset_index()
+    )
+
+    gender_data["Exited"] *= 100
+
+    fig4 = px.bar(
+        gender_data,
+        x="Gender",
+        y="Exited",
+        text_auto=".1f",
+        color="Gender",
+        color_discrete_map={
+            "Male":ACCENT,
+            "Female":DANGER
+        },
+        title="Gender Churn Comparison"
+    )
+
+    fig4.update_layout(**PLOT_LAYOUT)
+
+    c2.plotly_chart(
+        fig4,
+        use_container_width=True
+    )
+
+    st.divider()
+
+    # AGE x GENDER
+
+    age_gender = (
+        filtered
+        .groupby(
+            ["AgeGroup","Gender"],
+            observed=True
+        )["Exited"]
+        .mean()
+        .reset_index()
+    )
+
+    age_gender["Exited"] *= 100
+
+    fig5 = px.bar(
+        age_gender,
+        x="AgeGroup",
+        y="Exited",
+        color="Gender",
+        barmode="group",
+        text_auto=".1f",
+        color_discrete_map={
+            "Male":ACCENT,
+            "Female":DANGER
+        },
+        title="Age × Gender Churn Analysis"
+    )
+
+    fig5.update_layout(**PLOT_LAYOUT)
+
+    st.plotly_chart(
+        fig5,
+        use_container_width=True
+    )
+
+    st.divider()
+
+    left, right = st.columns(2)
+
+    # PRODUCTS
+
+    prod_data = (
+        filtered
+        .groupby("NumOfProducts")["Exited"]
+        .mean()
+        .reset_index()
+    )
+
+    prod_data["Exited"] *= 100
+
+    fig6 = px.bar(
+        prod_data,
+        x="NumOfProducts",
+        y="Exited",
+        text_auto=".1f",
+        color="Exited",
+        color_continuous_scale="Reds",
+        title="Product Holdings vs Churn"
+    )
+
+    fig6.update_layout(**PLOT_LAYOUT)
+
+    left.plotly_chart(
+        fig6,
+        use_container_width=True
+    )
+
+    # TENURE
+
+    tenure_data = (
+        filtered
+        .groupby(
+            "TenureGroup",
+            observed=True
+        )["Exited"]
+        .mean()
+        .reset_index()
+    )
+
+    tenure_data["Exited"] *= 100
+
+    fig7 = px.bar(
+        tenure_data,
+        x="TenureGroup",
+        y="Exited",
+        text_auto=".1f",
+        color="Exited",
+        color_continuous_scale="Reds",
+        title="Tenure vs Churn"
+    )
+
+    fig7.update_layout(**PLOT_LAYOUT)
+
+    right.plotly_chart(
+        fig7,
+        use_container_width=True
+    )
+
+    st.info(
+        """
+        Key Customer Insights
+
+        • Customers aged 46–60 remain the highest-risk segment.
+
+        • Female customers exhibit higher churn behaviour.
+
+        • Product complexity appears linked to churn.
+
+        • Longer tenure alone does not guarantee retention.
+        """
+    )
+
+# ==================================================
+# TAB 3 — GEOGRAPHIC INTELLIGENCE
+# ==================================================
+
+with tab3:
+
+    st.markdown(
+        '<div class="section-header">Geographic Intelligence</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="section-sub">Understand where churn risk is concentrated geographically.</div>',
+        unsafe_allow_html=True
+    )
+
+    col1, col2 = st.columns(2)
+
+    # COUNTRY RANKING
+
+    geo_rank = (
+        filtered
+        .groupby("Geography")["Exited"]
+        .mean()
+        .reset_index()
+    )
+
+    geo_rank["Exited"] *= 100
+
+    fig8 = px.bar(
+        geo_rank,
+        x="Geography",
+        y="Exited",
+        text_auto=".1f",
+        color="Exited",
+        color_continuous_scale="Reds",
+        title="Country Churn Ranking"
+    )
+
+    fig8.update_layout(**PLOT_LAYOUT)
+
+    col1.plotly_chart(
+        fig8,
+        use_container_width=True
+    )
+
+    # COUNTRY x GENDER
+
+    geo_gender = (
+        filtered
+        .groupby(
+            ["Geography","Gender"]
+        )["Exited"]
+        .mean()
+        .reset_index()
+    )
+
+    geo_gender["Exited"] *= 100
+
+    fig9 = px.bar(
+        geo_gender,
+        x="Geography",
+        y="Exited",
+        color="Gender",
+        barmode="group",
+        text_auto=".1f",
+        color_discrete_map={
+            "Male":ACCENT,
+            "Female":DANGER
+        },
+        title="Country × Gender Churn"
+    )
+
+    fig9.update_layout(**PLOT_LAYOUT)
+
+    col2.plotly_chart(
+        fig9,
+        use_container_width=True
+    )
+
+    st.divider()
+
+    st.subheader("🌍 Regional Risk Matrix")
+
+    geo_heat = (
+        filtered
+        .pivot_table(
+            values="Exited",
+            index="AgeGroup",
+            columns="Geography",
+            aggfunc="mean",
+            observed=True
+        ) * 100
+    )
+
+    fig_geo, ax = plt.subplots(figsize=(10,4))
+
+    sns.heatmap(
+        geo_heat,
+        annot=True,
+        fmt=".1f",
+        cmap="Reds",
+        linewidths=.5,
+        ax=ax
+    )
+
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+
+    st.pyplot(fig_geo)
+
+    st.info(
+        """
+        Geographic Insight
+
+        Germany remains the most vulnerable market.
+        Combined with the 46–60 age segment,
+        churn concentration becomes significantly elevated.
+
+        Retention resources should be prioritised
+        geographically before broad deployment.
+        """
+    )
+
+# ==================================================
+# TAB 4 — FINANCIAL EXPOSURE
+# ==================================================
+
+with tab4:
+
+    st.markdown(
+        '<div class="section-header">Financial Exposure</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="section-sub">Quantify revenue and customer value at risk.</div>',
+        unsafe_allow_html=True
+    )
+
+    # KPI ROW
+
+    hv_count = int(
+
+        filtered[
+            (filtered["IsHighValue"] == 1)
+            &
+            (filtered["Exited"] == 1)
+        ].shape[0]
+
+    )
+
+    avg_balance_lost = (
+
+        filtered[
+            (filtered["IsHighValue"] == 1)
+            &
+            (filtered["Exited"] == 1)
+        ]["Balance"]
+
+        .mean()
+
+    )
+
+    k1,k2,k3 = st.columns(3)
+
+    k1.metric(
+        "High Value Customers Lost",
+        f"{hv_count:,}"
+    )
+
+    k2.metric(
+        "Average Balance Lost",
+        f"£{avg_balance_lost:,.0f}"
+    )
+
+    k3.metric(
+        "Balance At Risk",
+        f"£{balance_risk:.2f}M"
+    )
+
+    st.divider()
+
+    left,right = st.columns(2)
+
+    # BALANCE SEGMENT
+
+    balance_data = (
+        filtered
+        .groupby(
+            "BalanceSegment",
+            observed=True
+        )["Exited"]
+        .mean()
+        .reset_index()
+    )
+
+    balance_data["Exited"] *= 100
+
+    fig10 = px.bar(
+        balance_data,
+        x="BalanceSegment",
+        y="Exited",
+        text_auto=".1f",
+        color="BalanceSegment",
+        color_discrete_map={
+            "Zero":"#CBD5E1",
+            "Low":WARNING,
+            "High":DANGER
+        },
+        title="Balance Segment Risk"
+    )
+
+    fig10.update_layout(**PLOT_LAYOUT)
+
+    left.plotly_chart(
+        fig10,
+        use_container_width=True
+    )
+
+    # HIGH VALUE GEO
+
+    hv_geo = (
+        filtered[
+            filtered["IsHighValue"] == 1
+        ]
+        .groupby("Geography")["Exited"]
+        .mean()
+        .reset_index()
+    )
+
+    hv_geo["Exited"] *= 100
+
+    fig11 = px.bar(
+        hv_geo,
+        x="Geography",
+        y="Exited",
+        text_auto=".1f",
+        color="Exited",
+        color_continuous_scale="Reds",
+        title="High Value Churn by Country"
+    )
+
+    fig11.update_layout(**PLOT_LAYOUT)
+
+    right.plotly_chart(
+        fig11,
+        use_container_width=True
+    )
+
+    st.divider()
+
+    st.subheader("💎 Risk Quadrant Analysis")
+
+    sample = filtered.sample(
+        min(2500, len(filtered)),
+        random_state=42
+    ).copy()
+
+    sample["Status"] = sample["Exited"].map(
+        {
+            0:"Retained",
+            1:"Churned"
+        }
+    )
+
+    median_balance = sample["Balance"].median()
+    median_salary = sample["EstimatedSalary"].median()
+
+    fig12 = px.scatter(
+        sample,
+        x="Balance",
+        y="EstimatedSalary",
+        color="Status",
+        opacity=0.55,
+        color_discrete_map={
+            "Retained":SUCCESS,
+            "Churned":DANGER
+        },
+        title="Customer Risk Quadrants"
+    )
+
+    fig12.add_vline(
+        x=median_balance,
+        line_dash="dash"
+    )
+
+    fig12.add_hline(
+        y=median_salary,
+        line_dash="dash"
+    )
+
+    fig12.add_annotation(
+        x=median_balance*1.5,
+        y=median_salary*1.6,
+        text="VIP Retention Zone",
+        showarrow=False
+    )
+
+    fig12.add_annotation(
+        x=median_balance*0.4,
+        y=median_salary*1.6,
+        text="Upsell Zone",
+        showarrow=False
+    )
+
+    fig12.add_annotation(
+        x=median_balance*1.5,
+        y=median_salary*0.4,
+        text="High-Risk Zone",
+        showarrow=False
+    )
+
+    fig12.update_layout(**PLOT_LAYOUT)
+
+    st.plotly_chart(
+        fig12,
+        use_container_width=True
+    )
+
+    st.info(
+        f"""
+        Financial Summary
+
+        • Total estimated exposure: £{balance_risk:.1f}M
+
+        • {hv_count:,} high-value customers have already churned
+
+        • Average balance lost per high-value customer:
+          £{avg_balance_lost:,.0f}
+
+        • VIP customer protection should be prioritised
+          over mass retention campaigns.
+        """
+    )
+
+# ==================================================
+# TAB 5 — ACTION CENTER
+# ==================================================
+
+with tab5:
+
+    st.markdown(
+        '<div class="section-header">Retention Strategy Center</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="section-sub">Executive action plan based on detected churn patterns.</div>',
+        unsafe_allow_html=True
+    )
+
+    # ==================================================
+    # PRIORITY MATRIX
+    # ==================================================
+
+    st.subheader("🚨 Priority Action Matrix")
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+
+        st.markdown("""
+        <div class="priority-card">
+
+        <h4 style="color:#EF4444;">
+        HIGH IMPACT • IMMEDIATE ACTION
+        </h4>
+
+        <b>Germany Retention Program</b>
+
+        <ul>
+        <li>Highest churn market</li>
+        <li>46–60 age segment at risk</li>
+        <li>Deploy dedicated relationship managers</li>
+        <li>Review service quality metrics</li>
+        </ul>
+
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("""
+        <div class="priority-card">
+
+        <h4 style="color:#EF4444;">
+        HIGH IMPACT • CUSTOMER VALUE
+        </h4>
+
+        <b>VIP Customer Protection</b>
+
+        <ul>
+        <li>Identify top balance customers</li>
+        <li>Offer premium retention packages</li>
+        <li>Dedicated account support</li>
+        <li>Preferential banking services</li>
+        </ul>
+
+        </div>
+        """, unsafe_allow_html=True)
+
+    with c2:
+
+        st.markdown("""
+        <div class="priority-card">
+
+        <h4 style="color:#F59E0B;">
+        MEDIUM IMPACT
+        </h4>
+
+        <b>Female Customer Engagement</b>
+
+        <ul>
+        <li>Improve digital experience</li>
+        <li>Targeted loyalty campaigns</li>
+        <li>Personalized product journeys</li>
+        <li>Financial planning solutions</li>
+        </ul>
+
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("""
+        <div class="priority-card">
+
+        <h4 style="color:#10B981;">
+        QUICK WIN
+        </h4>
+
+        <b>Inactive Member Recovery</b>
+
+        <ul>
+        <li>Automated engagement campaigns</li>
+        <li>Fee waiver incentives</li>
+        <li>Cashback programs</li>
+        <li>Reactivation rewards</li>
+        </ul>
+
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.divider()
+
+    # ==================================================
+    # STRATEGIC ROADMAP
+    # ==================================================
+
+    st.subheader("🗺️ Strategic Roadmap")
+
+    roadmap1, roadmap2, roadmap3 = st.columns(3)
+
+    roadmap1.markdown("""
+    ### 30 Days
+
+    - Launch churn monitoring
+    - Germany intervention
+    - Identify VIP customers
+    - Build risk watchlists
+    """)
+
+    roadmap2.markdown("""
+    ### 90 Days
+
+    - Retention campaigns
+    - Loyalty program redesign
+    - Advisor allocation
+    - Product rationalisation
+    """)
+
+    roadmap3.markdown("""
+    ### 180 Days
+
+    - Personalised banking
+    - Predictive retention engine
+    - Customer lifecycle program
+    - Portfolio optimisation
+    """)
+
+    st.divider()
+
+    # ==================================================
+    # EXPECTED IMPACT
+    # ==================================================
+
+    st.subheader("📈 Expected Business Impact")
+
+    impact1, impact2, impact3, impact4 = st.columns(4)
+
+    impact1.metric(
+        "Potential Churn Reduction",
+        "8–12%"
+    )
+
+    impact2.metric(
+        "Balance Protected",
+        f"£{balance_risk:.1f}M"
+    )
+
+    impact3.metric(
+        "High Value Customers",
+        f"{hv_count:,}"
+    )
+
+    impact4.metric(
+        "Retention Priority",
+        "Critical"
+    )
+
+    st.divider()
+
+    # ==================================================
+    # EXECUTIVE SUMMARY
+    # ==================================================
+
+    st.markdown(
+        """
+        ### Executive Summary
+        """
+    )
+
+    st.success(
+        f"""
+        Key Finding
+
+        Current churn exposure stands at {churn_rate:.1f}%.
+
+        High-value customer balances worth approximately
+        £{balance_risk:.1f}M remain vulnerable.
+
+        Germany, customers aged 46–60,
+        inactive members and multi-product customers
+        represent the most urgent retention priorities.
+
+        Recommended focus:
+        Protect high-value customers first,
+        then deploy targeted retention programs
+        to high-risk demographic segments.
+        """
+    )
+
+# ==================================================
+# FOOTER
+# ==================================================
+
+st.markdown("---")
+
+st.markdown(
+    """
+    <div style="text-align:center;">
+
+    <h4 style="margin-bottom:5px;color:#0F172A;">
+    ECB Customer Intelligence Platform
+    </h4>
+
+    <p style="color:#64748B;">
+    Executive Retention Analytics Dashboard
+    </p>
+
+    <p style="color:#94A3B8;font-size:12px;">
+    Built with Streamlit • Plotly • Data Analytics
+    </p>
+
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+
+)

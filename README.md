@@ -21,7 +21,7 @@ The analysis explores customer demographics, account behavior, and churn-related
 
 🚀 Streamlit Dashboard:
 
-https://european-bank-customer-churn-analysis-nikchansocial.streamlit.app/
+[https://european-bank-customer-churn-analysis-nikchansocial.streamlit.app/](Streamlit_Dashboard)
 
 ---
 
@@ -65,7 +65,7 @@ This project was completed as part of the Unified Mentor internship program with
 
 ## Dashboard Preview
 
-https://european-bank-customer-churn-analysis-nikchansocial.streamlit.app/
+[https://european-bank-customer-churn-analysis-nikchansocial.streamlit.app/](Dashboard_Preview)
 
 ---
 

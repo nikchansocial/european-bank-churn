@@ -198,50 +198,32 @@ df = load_data()
 with st.sidebar:
 
     st.markdown("""
-    ## 🏦 ECB Intelligence
+    <div style="background:linear-gradient(135deg,#0F172A,#2563EB);
+    padding:18px;border-radius:16px;color:white;">
+    <h3 style="margin:0;">🏦 ECB Intelligence</h3>
+    <p style="margin:4px 0 0 0;">Executive Retention Platform</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-    Executive Retention Platform
-    """)
+    st.markdown("### ⚡ Quick Filters")
 
-    st.markdown("---")
-
-    with st.expander(
-        "🌍 Geography",
-        expanded=True
-    ):
-
+    with st.expander("🌍 Geography", expanded=True):
         geo = st.multiselect(
             "Country",
             df["Geography"].unique(),
             default=list(df["Geography"].unique())
         )
 
-    with st.expander(
-        "👥 Customer Profile",
-        expanded=True
-    ):
-
+    with st.expander("👥 Customer Profile", expanded=True):
         age = st.multiselect(
             "Age Group",
             df["AgeGroup"].unique(),
             default=list(df["AgeGroup"].unique())
         )
+        gender = st.radio("Gender", ["All","Male","Female"])
+        member = st.radio("Member Status", ["All","Active","Inactive"])
 
-        gender = st.radio(
-            "Gender",
-            ["All","Male","Female"]
-        )
-
-        member = st.radio(
-            "Member Status",
-            ["All","Active","Inactive"]
-        )
-
-    with st.expander(
-        "💰 Financial",
-        expanded=False
-    ):
-
+    with st.expander("💰 Financial", expanded=False):
         balance_seg = st.multiselect(
             "Balance Segment",
             df["BalanceSegment"].unique(),
@@ -249,10 +231,10 @@ with st.sidebar:
         )
 
     st.markdown("---")
+    st.markdown("### 📊 Dataset")
+    st.caption("10,000 Customers")
+    st.caption("France • Germany • Spain")
 
-    st.caption(
-        "10,000 Customers\n\nFrance • Germany • Spain"
-    )
 
 # ==================================================
 # FILTERING
@@ -364,6 +346,24 @@ portfolio_churn = df["Exited"].mean() * 100
 filter_delta = churn_rate - portfolio_churn
 
 industry_benchmark = 15
+
+with st.sidebar:
+    st.markdown("---")
+    st.markdown("### 🎯 Portfolio Health")
+    st.metric("Risk Score", f"{risk_score}/100")
+    st.metric("Current Churn", f"{churn_rate:.1f}%")
+    st.metric("Balance At Risk", f"£{balance_risk:.1f}M")
+
+    st.markdown("### 🔍 Current View")
+    st.caption(f"Customers: {len(filtered):,}")
+    st.caption(f"Countries: {len(geo)} selected")
+    st.caption(f"Risk Level: {risk_label}")
+
+    st.markdown("### ⚡ Quick Actions")
+    st.button("Reset Filters", disabled=True)
+    st.button("High Risk View", disabled=True)
+    st.button("High Value Customers", disabled=True)
+
 
 # ==================================================
 # HEADER

@@ -183,7 +183,10 @@ html, body, [class*="css"]  { font-family: 'IBM Plex Sans', sans-serif; }
 # DATA LAYER — cached, path-safe
 # ──────────────────────────────────────────────────
 
-DATA_PATH = Path(__file__).parent / "data" / "European_Bank.csv"
+DATA_PATH = Path(__file__).parent.parent / "data" / "European_Bank.csv"
+
+if not DATA_PATH.exists():
+    DATA_PATH = Path(__file__).parent / "data" / "European_Bank.csv"
 
 @st.cache_data(show_spinner="Loading customer data…")
 def load_data() -> pd.DataFrame:

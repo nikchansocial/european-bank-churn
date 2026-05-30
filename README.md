@@ -99,27 +99,6 @@ european-bank-customer-churn-analysis/
 
 ---
 
-## Installation
-
-Clone the repository:
-
-```bash
-git clone https://github.com/nikchansocial/european-bank-customer-churn-analysis.git
-```
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-Run the Streamlit application:
-
-```bash
-streamlit run app/app.py
-```
-
----
 
 ## Business Insights
 
